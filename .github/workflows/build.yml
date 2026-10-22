@@ -1,0 +1,41 @@
+name: windows build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: inspect public source
+        run: .\tests\public-scan.ps1
+      - name: build
+        run: .\build.ps1
+      - name: cpu tests
+        run: .\tests\run.ps1
+      - name: package allowlisted files
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME -replace '^v','' } else { "0.1.0-ci.$env:GITHUB_RUN_NUMBER" }
+          .\scripts\release.ps1 -Version $version -SkipBuild -SkipTests
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flare-idle-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
